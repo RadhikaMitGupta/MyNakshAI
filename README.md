@@ -1,97 +1,318 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# MyNaksh AI Conversation Experience
 
-# Getting Started
+A React Native + TypeScript implementation of an AI astrology conversation experience with dynamic recommendations, message interactions, feedback, optimistic messaging, and reusable component architecture.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Tech Stack
 
-## Step 1: Start Metro
+- React Native 0.87.1
+- TypeScript
+- React Navigation
+- React Context + `useReducer`
+- React Native Reanimated
+- React Native `FlatList`
+- iOS and Android
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+---
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Project Structure
 
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+```text
+MyNakshAI/
+├── android/
+├── ios/
+├── src/
+│   ├── components/
+│   │   ├── DateSeparator.tsx
+│   │   ├── MessageBubble.tsx
+│   │   ├── MessageComposer.tsx
+│   │   ├── RecommendationCarousel.tsx
+│   │   ├── RecommendationRenderer.tsx
+│   │   ├── ReplyPreview.tsx
+│   │   └── SystemMessage.tsx
+│   │
+│   ├── data/
+│   │   └── mockConversation.ts
+│   │
+│   ├── navigation/
+│   │   └── AppNavigator.tsx
+│   │
+│   ├── screens/
+│   │   └── ConversationScreen.tsx
+│   │
+│   ├── services/
+│   │   └── conversationApi.ts
+│   │
+│   ├── state/
+│   │   └── ConversationContext.tsx
+│   │
+│   └── types/
+│       └── conversation.ts
+│
+├── App.tsx
+├── package.json
+└── tsconfig.json
 ```
 
-## Step 2: Build and run your app
+### Responsibility of each layer
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+- **components/** — Reusable UI components for messages, recommendations, composer and supporting UI.
+- **screens/** — Screen-level orchestration and user interactions.
+- **navigation/** — Navigation configuration using React Navigation.
+- **state/** — Conversation state and reducer actions.
+- **services/** — Mock API layer and asynchronous operations.
+- **data/** — Mock conversation payload.
+- **types/** — Shared TypeScript domain models.
 
-### Android
+---
 
-```sh
-# Using npm
-npm run android
+## Component Architecture
 
-# OR using Yarn
-yarn android
+The conversation screen is intentionally kept as an orchestration layer rather than putting all UI logic into a single component.
+
+```text
+App
+ │
+ └── NavigationContainer
+      │
+      └── AppNavigator
+           │
+           └── ConversationScreen
+                │
+                ├── DateSeparator
+                │
+                ├── SystemMessage
+                │
+                ├── MessageBubble
+                │     ├── Reply
+                │     ├── Copy
+                │     ├── Delete
+                │     ├── Feedback
+                │     └── Retry
+                │
+                ├── RecommendationCarousel
+                │     └── RecommendationRenderer
+                │
+                ├── ReplyPreview
+                │
+                └── MessageComposer
 ```
 
-### iOS
+`ConversationScreen` handles conversation-level orchestration such as loading messages, sending messages, retrying failed messages and dispatching state updates.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+Individual UI responsibilities are delegated to reusable components so that new message types or interactions can be added without making the screen monolithic.
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+---
 
-```sh
-bundle install
+## State Management
+
+The application uses **React Context + `useReducer`** for conversation state.
+
+The state contains:
+
+```text
+messages
+loading
+error
+replyTo
 ```
 
-Then, and every time you update your native dependencies, run:
+The reducer handles explicit actions such as:
 
-```sh
-bundle exec pod install
+- `LOAD_SUCCESS`
+- `LOAD_ERROR`
+- `ADD_MESSAGE`
+- `DELETE_MESSAGE`
+- `UPDATE_MESSAGE`
+- `UPDATE_MESSAGE_STATUS`
+- `SET_FEEDBACK`
+- `SET_FEEDBACK_REASON`
+- `SET_REPLY`
+
+This approach keeps state transitions predictable and makes the conversation behavior easy to extend.
+
+For this assessment, Context + reducer was chosen over introducing Redux because the state is currently scoped primarily to the conversation experience. If the application grows to include authentication, user profiles, subscriptions, consultations, notifications and other cross-screen state, Redux Toolkit or another centralized store could be introduced.
+
+---
+
+## Recommendation Rendering Strategy
+
+Recommendations are modeled as data rather than hardcoded UI.
+
+Each recommendation contains:
+
+```ts
+interface Recommendation {
+  id: string;
+  type: RecommendationType;
+  title: string;
+  subtitle?: string;
+}
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+Supported recommendation types currently include:
 
-```sh
-# Using npm
-npm run ios
+```text
+gemstone
+tarot
+consultation
+article
+promotion
+panchang
+remedy
+```
 
-# OR using Yarn
+The rendering architecture is:
+
+```text
+AI Message
+    │
+    └── recommendations[]
+            │
+            └── RecommendationCarousel
+                    │
+                    └── RecommendationRenderer
+                            │
+                            └── type configuration
+```
+
+`RecommendationCarousel` is responsible only for horizontal scrolling and layout.
+
+`RecommendationRenderer` is responsible for rendering the reusable recommendation card and selecting the appropriate presentation based on the recommendation type.
+
+This makes adding a new recommendation type straightforward. A new type can be added to the domain model and configuration without creating a completely separate rendering component.
+
+---
+
+## Performance Considerations
+
+The conversation uses React Native's `FlatList` rather than rendering messages with a regular `.map()`.
+
+This provides virtualization so that only the required portion of a potentially large conversation is rendered.
+
+Additional considerations include:
+
+- Stable message IDs are used as `FlatList` keys.
+- Recommendation cards use stable recommendation IDs.
+- Recommendations are rendered in a horizontal `FlatList`.
+- Message components are split into smaller reusable components.
+- Long conversations are handled through list virtualization.
+- Horizontal recommendation lists avoid expanding the vertical conversation unnecessarily.
+- Auto-scrolling is performed when new messages are added.
+- The architecture allows further optimization with `React.memo`, `getItemLayout`, pagination and message windowing if conversation sizes increase significantly.
+
+For a production-scale implementation, I would also consider pagination/infinite history loading, memoized selectors, image optimization for recommendation cards, and profiling with the React Native performance tools.
+
+---
+
+## Trade-offs Due to Time Constraints
+
+The assessment was designed to be completed within a limited time window, so several areas were intentionally simplified.
+
+### Mock API
+
+The application uses a local mock API with artificial delays instead of a real backend.
+
+This was sufficient to demonstrate:
+
+- Loading states
+- Optimistic updates
+- Sending states
+- Failure handling
+- Retry behavior
+
+A production implementation would replace this service with a real API client and proper request cancellation, authentication and error handling.
+
+### Recommendation Actions
+
+Recommendation cards currently demonstrate interaction through a local action rather than navigating to complete product/detail flows.
+
+The architecture is designed so that these actions can later navigate to:
+
+- Gemstone details
+- Tarot experience
+- Consultation booking
+- Articles
+- Panchang
+- Remedies
+- Promotions
+
+### UI Design
+
+The implementation focuses on interaction, architecture and reusability rather than reproducing a production design system pixel-perfectly.
+
+### State Management
+
+Context + reducer was intentionally selected to keep the solution lightweight. A larger application with many independent domains would benefit from Redux Toolkit or another centralized state management solution.
+
+### Offline / Persistence
+
+Conversation persistence and offline caching were not implemented because they were outside the core assessment requirements. These could be added using local persistence such as AsyncStorage or a database layer.
+
+### Production Infrastructure
+
+Authentication, analytics, crash reporting, push notifications and real backend integration were intentionally omitted to keep the implementation focused on the requested AI conversation experience.
+
+---
+
+## Key Design Decisions
+
+The main architectural goals were:
+
+1. Keep the conversation screen focused on orchestration.
+2. Make message UI reusable.
+3. Treat recommendations as data-driven content.
+4. Make new recommendation types easy to add.
+5. Use list virtualization for scalability.
+6. Keep state transitions explicit and predictable.
+7. Keep the implementation simple enough to evolve into a production architecture.
+
+---
+
+## Future Improvements
+
+With additional development time, I would add:
+
+- Real AI/API integration
+- Streaming AI responses
+- Pagination for conversation history
+- Persistent conversation storage
+- Rich recommendation cards with images
+- Deep linking from recommendations
+- More advanced Reanimated interactions
+- Message read/delivery indicators
+- Voice input/output
+- Analytics and crash reporting
+- Automated unit and integration tests
+- Accessibility improvements
+- Performance profiling with large conversation datasets
+
+---
+
+## Running the Project
+
+Install dependencies:
+
+```bash
+yarn install
+```
+
+For iOS:
+
+```bash
+cd ios
+pod install
+cd ..
 yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+For Android:
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+```bash
+yarn android
+```
 
-## Step 3: Modify your app
+TypeScript validation:
 
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+```bash
+npx tsc --noEmit
+```
